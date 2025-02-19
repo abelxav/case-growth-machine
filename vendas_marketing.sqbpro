@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="vendas_marketing.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="1898"/><column_width id="4" width="0"/><expanded_item id="4" parent="0"/><expanded_item id="0" parent="1"/><expanded_item id="0" parent="0"/><expanded_item id="1" parent="0"/><expanded_item id="2" parent="0"/><expanded_item id="4" parent="0"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title="Campanhas_Marketing" custom_title="0" dock_id="1" table="4,19:mainCampanhas_Marketing"/><dock_state state="000000ff00000000fd0000000100000002000003b20000037efc0100000001fb000000160064006f0063006b00420072006f00770073006500310100000000000003b20000018d00ffffff000003b20000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings><table schema="main" name="Campanhas_Marketing" show_row_id="0" encoding="" plot_x_axis="" unlock_view_pk="_rowid_" freeze_columns="0"><sort/><column_widths><column index="1" value="84"/><column index="2" value="167"/><column index="3" value="104"/><column index="4" value="87"/><column index="5" value="87"/><column index="6" value="71"/><column index="7" value="71"/></column_widths><filter_values/><conditional_formats/><row_id_formats/><display_formats/><hidden_columns/><plot_y_axes/><global_filter/></table></browse_table_settings></tab_browse><tab_sql><sql name="1. Total de Vendas por Canal*">SELECT
+	canal_aquisicao,
+	SUM(valor_total) AS 'total_vendas',
+	CASE	
+		WHEN STRFTIME('%m', data_venda) BETWEEN '01' AND '03' THEN '1_trimestre'
+		WHEN STRFTIME('%m', data_venda) BETWEEN '04' AND '06' THEN '2_trimestre'
+		WHEN STRFTIME('%m', data_venda) BETWEEN '07' AND '09' THEN '3_trimestre'
+		WHEN STRFTIME('%m', data_venda) BETWEEN '10' AND '12' THEN '4_trimestre'
+		ELSE 'invalido'
+	END AS trimestre_venda
+FROM Vendas
+GROUP BY canal_aquisicao, trimestre_venda
+ORDER BY canal_aquisicao, trimestre_venda</sql><sql name="2. Top 5 Produtos Mais Vendidos e Margem de Lucro Média">SELECT 
+	p.nome_produto,
+	SUM(v.quantidade) AS 'total_vendido', 
+	p.preco_unitario,
+	p.custo_unitario,
+	AVG((p.preco_unitario - p.custo_unitario) / p.preco_unitario * 100 ) AS 'margem_lucro'
+FROM Vendas v
+JOIN Produtos p ON v.id_produto = p.id_produto
+GROUP BY p.nome_produto
+ORDER BY total_vendido DESC
+LIMIT 5
+</sql><sql name="3. Segmentação de Clientes">SELECT 
+	c.segmento,
+	AVG(v.valor_total) AS 'ticket_medio'
+FROM Vendas v
+JOIN Clientes c on v.id_cliente = c.id_cliente
+GROUP BY c.segmento</sql><sql name="4. Análise de Sazonalidade">SELECT
+	STRFTIME('%Y-%m', data_venda) as 'mes',
+	COUNT(*) AS 'qtd_total_vendas'
+FROM Vendas
+GROUP BY mes
+ORDER BY mes
+</sql><sql name="5. Eficiência das Campanhas:">SELECT 
+	c.nome_campanha, 
+    c.orcamento, 
+    c.custo, 
+    COUNT(i.id_interacao) AS 'total_interacoes',
+    SUM(CASE WHEN i.tipo_interacao = 'Conversão' THEN 1 ELSE 0 END) AS 'total_conversoes',
+    (SUM(CASE WHEN i.tipo_interacao = 'Conversão' THEN 1 ELSE 0 END) * 100.0) / NULLIF(COUNT(i.id_Interacao), 0) AS 'taxa_conversao',
+    (SUM(CASE WHEN i.tipo_interacao = 'Conversão' THEN 1 ELSE 0 END) * 100.0) / NULLIF(c.orcamento, 0) AS 'conversoes_por_orcamento',
+    (SUM(CASE WHEN i.tipo_interacao = 'Conversão' THEN 1 ELSE 0 END) * 100.0) / NULLIF(c.Custo, 0) AS 'conversoes_por_custo'
+FROM Campanhas_Marketing c
+JOIN Interacoes_Marketing i ON c.id_campanha = i.id_campanha
+GROUP BY c.nome_campanha, c.orcamento, c.custo
+ORDER BY taxa_conversao DESC, conversoes_por_orcamento ASC, conversoes_por_custo ASC;</sql><sql name="6. Canais de Marketing:">SELECT 
+	c.canal_marketing,
+	COUNT(i.id_interacao) AS 'total_interacoes',
+	SUM(CASE WHEN i.tipo_interacao = 'Clique' THEN 1 ELSE 0 END) AS 'cliques',
+    SUM(CASE WHEN i.tipo_interacao = 'Conversão' THEN 1 ELSE 0 END) AS 'conversoes',
+    SUM(CASE WHEN i.tipo_interacao = 'Visualização' THEN 1 ELSE 0 END) AS 'visualizacoes'
+FROM Interacoes_Marketing i
+JOIN Campanhas_Marketing c ON i.id_campanha = c.id_campanha
+GROUP BY c.canal_marketing
+ORDER BY cliques DESC
+
+</sql><sql name="7. Relação Temporal">SELECT 
+	   p.Nome_Produto, 
+       c.Nome_Campanha, 
+       c.Data_Inicio, 
+       c.Data_Fim, 
+       SUM(CASE WHEN v.Data_Venda BETWEEN c.Data_Inicio AND DATE(c.Data_Inicio, '+7 days') THEN v.Quantidade ELSE 0 END) AS Vendas_Inicio_Campanha,
+       SUM(CASE WHEN v.Data_Venda BETWEEN DATE(c.Data_Inicio, '+8 days') AND DATE(c.Data_Inicio, '+30 days') THEN v.Quantidade ELSE 0 END) AS Vendas_Apos_Campanha,
+       SUM(v.Quantidade) AS Total_Vendas
+FROM Vendas v
+JOIN Produtos p ON v.id_produto = p.id_produto
+JOIN Campanhas_Marketing c ON v.data_venda BETWEEN c.data_inicio AND DATE(c.data_fim, '+30 days')
+GROUP BY p.Nome_Produto, c.Nome_Campanha, c.Data_Inicio, c.Data_Fim
+ORDER BY c.Data_Inicio DESC, Vendas_Apos_Campanha DESC;</sql><sql name="8. Análise Regional">SELECT 
+	c.cidade,
+	m.nome_campanha,
+	m.data_inicio, 
+	m.data_fim,
+	COUNT(DISTINCT i.id_interacao) AS 'total_interacoes',
+	SUM(CASE WHEN i.tipo_interacao = 'Conversão' THEN 1 ELSE 0 END) AS 'total_conversoes',
+	SUM(v.quantidade) as 'total_vendas',
+    (SUM(CASE WHEN i.tipo_interacao = 'Conversão' THEN 1 ELSE 0 END) * 100) / NULLIF(COUNT(DISTINCT i.id_interacao), 0) AS 'taxa_conversao'
+FROM Vendas v
+JOIN Clientes c ON v.id_cliente = c.id_cliente
+JOIN Campanhas_Marketing m ON v.data_venda BETWEEN m.data_inicio and DATE(m.data_fim, '+30 days') and v.id_campanha = m.id_campanha
+JOIN Interacoes_Marketing i ON i.id_campanha = m.id_campanha and i.id_cliente = v.id_cliente and m.id_campanha = i.id_campanha
+GROUP BY c.cidade, m.nome_campanha, m.data_inicio, m.data_fim
+ORDER BY total_conversoes DESC, total_vendas DESC;
+</sql><current_tab id="7"/></tab_sql></sqlb_project>
